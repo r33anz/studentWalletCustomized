@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../shared/components/Button";
 import { Card } from "../shared/components/Card";
 import { SeedPhraseModal } from "./components/SeedPhraseModal";
 import { useNavigate } from "react-router-dom";
 import { SetPasswordModal } from "./components/SetPasswordModal";
-
+import FirstLoginService from "./services/FirstLoginService";
+import { keccak256,toUtf8Bytes } from "ethers";
 
 export default function Login() {
   const [isNewUser, setIsNewUser] = useState(true)
@@ -16,12 +17,40 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [seedPhrase, setSeedPhrase] = useState("")
   const [error, setError] = useState("")
+  const [wallet, setWallet] = useState(null)
+  //const [contractStudentManagementToSetData, setContractStudentManagementToSetData] = useState(null)  
+  //const [contractStudentManagementToGetData, setContractStudentManagementToGetData] = useState(null) 
   const navigate = useNavigate()
 
-  const handleExistingUserLogin = (e) => {
+
+  useEffect(() => {
+    
+  }, [wallet])
+
+  const handleExistingUserLogin = async (e) => {
     e.preventDefault()
     console.log("SIS Code:", sisCode)
     console.log("Password:", password)
+
+    const contractStudentManagementToGetData =
+      FirstLoginService.connectToManagementCredentialContractToGetData();
+
+    if (!contractStudentManagementToGetData) {
+      console.log("Error: No se pudo conectar con el contrato.");
+      return;
+    }
+
+    try {
+      const passwordRecovered = await contractStudentManagementToGetData.getStudentPassword(sisCode);
+      if(passwordRecovered !== keccak256(toUtf8Bytes(password))) {
+        setError("Código SIS o contraseña incorrectos") 
+        return
+      }   
+
+      console.log("Password Recuperado:",passwordRecovered );
+    } catch (error) {       
+        console.error("Error al recuperar el código SIS:", error);
+    }
     navigate("/wallet")
   }
 
@@ -31,21 +60,61 @@ export default function Login() {
     setShowSeedModal(true)
   }
 
-  const handleVerifySeedPhrase = () => {
+  const  handleVerifySeedPhrase =async () => {
+
+    const arrText = FirstLoginService.splitPhrase(seedPhrase)
     
-    console.log("Frase Semilla:", seedPhrase.trim().split(" "))
+    if(!FirstLoginService.countWords(arrText)){
+      setError("La frase semilla debe tener 12 palabras")
+      return
+    }
+    const rebuiltPhrase = FirstLoginService.rebuildPhrase(arrText)
+    const walletGenerated = 
+      FirstLoginService.getWalletAndPKFromMnemonicPhrase(rebuiltPhrase)
+    setWallet(walletGenerated)
+    
+    const contractStudentManagementToGetData =
+      FirstLoginService.connectToManagementCredentialContractToGetData();
+
+    if (!contractStudentManagementToGetData) {
+      console.log("Error: No se pudo conectar con el contrato.");
+      return;
+    }
+
+    try {
+      const sisCodeRecovered = await contractStudentManagementToGetData.verifySISCodeByWalletAddres(walletGenerated.address);
+      console.log("Código SIS Recuperado:", sisCodeRecovered);
+    } catch (error) {
+      console.error("Error al recuperar el código SIS:", error);
+    }
+    
+    console.log("Frase Semilla:",rebuiltPhrase)
     setShowSeedModal(false)
     setShowPasswordModal(true)
   }
 
-  const handleSetPassword = () => {
-    console.log("Nueva Contraseña:",newPassword)
+  const handleSetPassword = async() => {
+    
     if(newPassword !== confirmPassword) {
       setError("Las contraseñas no coinciden")
       return
     }
+    const contractStudentManagementToSetData =
+      FirstLoginService.connectToManagementCredentialContractToSetData(wallet);
 
-    navigate("/wallet")
+    if (!contractStudentManagementToSetData) {
+      console.log("Error: No se pudo conectar con el contrato.");   
+      return;
+    } 
+
+    try {
+      const passwordHash = keccak256(toUtf8Bytes(newPassword));
+      await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
+      navigate("/wallet");
+    } catch (error) {
+      console.error("Error setting password:", error);
+      setError("Error al establecer la contraseña");
+    }
   }
 
   return (
