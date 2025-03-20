@@ -4,7 +4,7 @@ import { Card } from "../shared/components/Card";
 import { SeedPhraseModal } from "./components/SeedPhraseModal";
 import { useNavigate } from "react-router-dom";
 import { SetPasswordModal } from "./components/SetPasswordModal";
-import FirstLoginService from "./services/FirstLoginService";
+import LoginService from "./services/LoginService";
 import { keccak256,toUtf8Bytes } from "ethers";
 
 export default function Login() {
@@ -18,10 +18,7 @@ export default function Login() {
   const [seedPhrase, setSeedPhrase] = useState("")
   const [error, setError] = useState("")
   const [wallet, setWallet] = useState(null)
-  //const [contractStudentManagementToSetData, setContractStudentManagementToSetData] = useState(null)  
-  //const [contractStudentManagementToGetData, setContractStudentManagementToGetData] = useState(null) 
   const navigate = useNavigate()
-
 
   useEffect(() => {
     
@@ -33,7 +30,7 @@ export default function Login() {
     console.log("Password:", password)
 
     const contractStudentManagementToGetData =
-      FirstLoginService.connectToManagementCredentialContractToGetData();
+    LoginService.connectToManagementCredentialContractToGetData();
 
     if (!contractStudentManagementToGetData) {
       console.log("Error: No se pudo conectar con el contrato.");
@@ -42,16 +39,28 @@ export default function Login() {
 
     try {
       const passwordRecovered = await contractStudentManagementToGetData.getStudentPassword(sisCode);
+      const addresAndIPFSHash = await contractStudentManagementToGetData.getAddressAndIPFSHash(sisCode);
+      const balance = await LoginService.getBalance(addresAndIPFSHash[0]);
+      
       if(passwordRecovered !== keccak256(toUtf8Bytes(password))) {
         setError("Código SIS o contraseña incorrectos") 
         return
       }   
 
-      console.log("Password Recuperado:",passwordRecovered );
-    } catch (error) {       
+      console.log("Balance:",balance)
+      console.log("Dirección e IPFS Hash Recuperados:",addresAndIPFSHash[0],
+                                                      addresAndIPFSHash[1]);
+      navigate("/wallet", {
+        state: {    
+          hashIPFS: addresAndIPFSHash[1],
+          address: addresAndIPFSHash[0],  
+          balance: balance
+        }
+      });
+                                                    } catch (error) {       
         console.error("Error al recuperar el código SIS:", error);
     }
-    navigate("/wallet")
+    
   }
 
   const handleNewUserLogin = (e) => {
@@ -62,31 +71,35 @@ export default function Login() {
 
   const  handleVerifySeedPhrase =async () => {
 
-    const arrText = FirstLoginService.splitPhrase(seedPhrase)
+    const arrText = LoginService.splitPhrase(seedPhrase)
     
-    if(!FirstLoginService.countWords(arrText)){
+    if(!LoginService.countWords(arrText)){
       setError("La frase semilla debe tener 12 palabras")
       return
     }
-    const rebuiltPhrase = FirstLoginService.rebuildPhrase(arrText)
+    const rebuiltPhrase = LoginService.rebuildPhrase(arrText)
     const walletGenerated = 
-      FirstLoginService.getWalletAndPKFromMnemonicPhrase(rebuiltPhrase)
+    LoginService.getWalletAndPKFromMnemonicPhrase(rebuiltPhrase)
     setWallet(walletGenerated)
     
     const contractStudentManagementToGetData =
-      FirstLoginService.connectToManagementCredentialContractToGetData();
+    LoginService.connectToManagementCredentialContractToGetData();
 
     if (!contractStudentManagementToGetData) {
       console.log("Error: No se pudo conectar con el contrato.");
       return;
     }
+    console.log("Dirección Generada:",walletGenerated.address)
 
     try {
+
       const sisCodeRecovered = await contractStudentManagementToGetData.verifySISCodeByWalletAddres(walletGenerated.address);
       console.log("Código SIS Recuperado:", sisCodeRecovered);
     } catch (error) {
+
       console.error("Error al recuperar el código SIS:", error);
     }
+
     
     console.log("Frase Semilla:",rebuiltPhrase)
     setShowSeedModal(false)
@@ -100,7 +113,7 @@ export default function Login() {
       return
     }
     const contractStudentManagementToSetData =
-      FirstLoginService.connectToManagementCredentialContractToSetData(wallet);
+    LoginService.connectToManagementCredentialContractToSetData(wallet);
 
     if (!contractStudentManagementToSetData) {
       console.log("Error: No se pudo conectar con el contrato.");   
@@ -108,9 +121,22 @@ export default function Login() {
     } 
 
     try {
+      const addresAndIPFSHash = await contractStudentManagementToGetData.getAddressAndIPFSHash(sisCode); 
       const passwordHash = keccak256(toUtf8Bytes(newPassword));
       await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
-      navigate("/wallet");
+    
+      console.log("Dirección e IPFS Hash Recuperados:",addresAndIPFSHash[0],
+                                                      addresAndIPFSHash[1]);  
+      const balance = await LoginService.getBalance(addresAndIPFSHash[0]);
+      console.log("Balance:",balance)
+
+      navigate("/wallet",{
+        state: { 
+          hashIPFS: addresAndIPFSHash[1],
+          address: addresAndIPFSHash[0],
+          balance: balance
+        }
+      });
     } catch (error) {
       console.error("Error setting password:", error);
       setError("Error al establecer la contraseña");

@@ -1,13 +1,29 @@
-import React, { useState } from "react";
+import React, { useState,useEffect } from "react";
 import { WalletHeader } from "./components/WalletHeader";
 import { IPFSCard } from "./components/IPFSCard";
 import { KardexCard } from "./components/KardexCard";
+import { useWallet } from "./WalletContext";
+import { useLocation } from "react-router-dom";
 
 export default function Wallet() {
-  const [walletAddress] = useState("0x1234...5678");
-  const [balance] = useState("100 TBNB");
-  const [ipfsHash] = useState("QmX...abc");
+  const { walletData } = useWallet();
+
+  const [walletAddress,setWalletAddres] = useState("");
+  const [balance,setBalance] = useState("");
+  const [ipfsHash,setIPFSHash] = useState("");
   const [activeTab, setActiveTab] = useState("ipfs");
+
+  useEffect(() => {
+    if (walletData) {
+      setWalletAddres(walletData.address)
+      setBalance(walletData.balance+" TBNB")
+      if(walletData.ipfsHash){
+        setIPFSHash(walletData.hashIPFS)
+      }else{
+        setIPFSHash("Sin hash,solicitelo en la seccion de kardex.")
+      }
+    }
+  }, [walletData]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);

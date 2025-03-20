@@ -38,18 +38,23 @@ class FirstLoginService {
 
     connectToManagementCredentialContractToGetData(){
         const contractAddressStudentManagement = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT
-        /*console.log(abiStudentManagement)
-        console.log(provider)
-        console.log(contractAddressStudentManagement)*/
         const contractStudentManagementToReadData = new ethers.Contract(
             contractAddressStudentManagement,   
             abiStudentManagement,
             provider)
-        //console.log(contractStudentManagementToReadData)
         
         return contractStudentManagementToReadData;
     }
 
+    async getBalance(walletAddress) {
+        try {
+          const balance = await provider.getBalance(walletAddress);
+          return ethers.formatEther(balance);
+        } catch (error) {
+          console.error("Error fetching balance:", error);
+          throw error;
+        }
+      }
 
 }
 
