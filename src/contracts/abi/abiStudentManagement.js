@@ -1,4 +1,4 @@
-const abiStudentManagement =  [
+const abiStudentManagement =   [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -31,25 +31,6 @@ const abiStudentManagement =  [
     "inputs": [
       {
         "indexed": true,
-        "internalType": "string",
-        "name": "studentSIS",
-        "type": "string"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "studentWallet",
-        "type": "address"
-      }
-    ],
-    "name": "CredentialStudentEmmited",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
         "type": "address"
@@ -62,6 +43,50 @@ const abiStudentManagement =  [
       }
     ],
     "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "codSIS",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timeRequested",
+        "type": "uint256"
+      }
+    ],
+    "name": "RequestKardex",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "codSIS",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "studentAddressWallet",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timeRequested",
+        "type": "uint256"
+      }
+    ],
+    "name": "ResponseKardex",
     "type": "event"
   },
   {
@@ -146,6 +171,19 @@ const abiStudentManagement =  [
   {
     "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "codSIS",
+        "type": "string"
+      }
+    ],
+    "name": "requestKardex",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -241,44 +279,6 @@ const abiStudentManagement =  [
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "walletAddress",
-        "type": "address"
-      }
-    ],
-    "name": "verifySISCodeByWalletAddres",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "walletToCodSIS",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   }
 ]

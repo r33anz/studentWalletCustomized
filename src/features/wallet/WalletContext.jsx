@@ -12,7 +12,7 @@ export const WalletProvider = ({children}) => {
     useEffect(() => {
         // Si venimos de la página de login, obtenemos los datos
         console.log("State",location.state)
-        if (location.state && location.state.address) {
+        if (location.state && location.state.wallet) {
             
             setWalletData(location.state)
         } else {

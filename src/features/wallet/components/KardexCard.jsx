@@ -1,7 +1,73 @@
-import React from "react";
-import { Button } from "../../shared/components/Button";
+import React,{useState,useEffect} from "react";
+import { useWallet } from "../WalletContext";
+import provider from "../../../contracts/conecction/blockchainConnection";
+import abiStudentManagement from "../../../contracts/abi/abiStudentManagement";
+import { ethers } from "ethers";
 
 export const KardexCard = () => {
+  const { walletData } = useWallet();
+  const [wallet, setWallet] = useState(null)
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (walletData?.wallet) {
+      try {
+        let reconstructedWallet;
+        if (!(walletData.wallet instanceof ethers.HDNodeWallet)) {
+          if (walletData.wallet.mnemonic && walletData.wallet.mnemonic.phrase) {
+            reconstructedWallet = ethers.HDNodeWallet.fromPhrase(
+              walletData.wallet.mnemonic.phrase
+            );
+          } else {
+            reconstructedWallet = new ethers.HDNodeWallet(
+              walletData.wallet.privateKey, 
+              walletData.wallet.publicKey, 
+              walletData.wallet.address
+            );
+          }
+        } else {
+          reconstructedWallet = walletData.wallet;
+        }
+        setWallet(reconstructedWallet);
+      } catch (err) {
+        console.error("Error reconstruyendo wallet:", err);
+        setError("No se pudo reconstruir la wallet");
+      }
+    }
+  }, [walletData]);
+  
+  
+  const handleReqestKardex = () =>{
+    try {
+      if (!wallet || !(wallet instanceof ethers.HDNodeWallet)) {
+        throw new Error("Error al generar la wallet");
+      }
+
+      const contractAddressStudentManagement = 
+        process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
+      
+      if (!provider) {
+        throw new Error("No se pudo conectar a la blockchain");
+      }
+      
+      const connectedWallet = wallet.connect(provider)
+      const contract = new ethers.Contract(
+        contractAddressStudentManagement,
+        abiStudentManagement,
+        connectedWallet
+      );
+
+      if (!contract) {
+        throw new Error("No se pudo crear la instancia del contrato");
+      }
+
+      console.log("Contrato conectado correctamente:", contract);
+    } catch (error) {
+      console.error("Error en handleReqestKardex:", error);
+      setError(error.message);
+    }
+  }
+
   return (
     <div className="p-6 text-center space-y-4">
       <div className="mx-auto bg-gradient-to-r from-green-200 to-yellow-100 w-16 h-16 rounded-full flex items-center justify-center shadow-md">
@@ -24,7 +90,9 @@ export const KardexCard = () => {
       <p className="text-sm text-gray-600 max-w-md mx-auto">
         Al solicitar un nuevo kardex, se generará un nuevo hash IPFS con tu información académica actualizada.
       </p>
-      <button className="px-6 py-2 bg-gradient-to-r from-orange-400 to-orange-800 text-white rounded-full font-medium hover:from-orange-500 hover:to-red-500 transition-all duration-200">
+      <button className="px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-200"
+          onClick={handleReqestKardex}
+      >
         Solicitar Kardex
       </button>
     </div>

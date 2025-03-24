@@ -4,10 +4,11 @@ import { IPFSCard } from "./components/IPFSCard";
 import { KardexCard } from "./components/KardexCard";
 import { useWallet } from "./WalletContext";
 import { useLocation } from "react-router-dom";
+import { ethers } from "ethers";
 
 export default function Wallet() {
   const { walletData } = useWallet();
-
+  const [Wallet, setWallet] = useState(null)
   const [walletAddress,setWalletAddres] = useState("");
   const [balance,setBalance] = useState("");
   const [ipfsHash,setIPFSHash] = useState("");
@@ -15,15 +16,41 @@ export default function Wallet() {
 
   useEffect(() => {
     if (walletData) {
-      setWalletAddres(walletData.address)
+      setWalletAddres(walletData.wallet.address)
       setBalance(walletData.balance+" TBNB")
       if(walletData.ipfsHash){
         setIPFSHash(walletData.hashIPFS)
       }else{
         setIPFSHash("Sin hash,solicitelo en la seccion de kardex.")
       }
+
+      if (walletData?.wallet) {
+            try {
+              let reconstructedWallet;
+              if (!(walletData.wallet instanceof ethers.HDNodeWallet)) {
+                if (walletData.wallet.mnemonic && walletData.wallet.mnemonic.phrase) {
+                  reconstructedWallet = ethers.HDNodeWallet.fromPhrase(
+                    walletData.wallet.mnemonic.phrase
+                  );
+                } else {
+                  reconstructedWallet = new ethers.HDNodeWallet(
+                    walletData.wallet.privateKey, 
+                    walletData.wallet.publicKey, 
+                    walletData.wallet.address
+                  );
+                }
+              } else {
+                reconstructedWallet = walletData.wallet;
+              }
+              setWallet(reconstructedWallet);
+            } catch (err) {
+              console.error("Error reconstruyendo wallet:", err);
+              setError("No se pudo reconstruir la wallet");
+            }
+          }
     }
   }, [walletData]);
+
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);

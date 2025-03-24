@@ -5,7 +5,8 @@ import { SeedPhraseModal } from "./components/SeedPhraseModal";
 import { useNavigate } from "react-router-dom";
 import { SetPasswordModal } from "./components/SetPasswordModal";
 import LoginService from "./services/LoginService";
-import { keccak256,toUtf8Bytes } from "ethers";
+import { keccak256,toUtf8Bytes,Wallet } from "ethers";
+import { ethers } from "ethers";
 
 export default function Login() {
   const [isNewUser, setIsNewUser] = useState(true)
@@ -26,11 +27,14 @@ export default function Login() {
 
   const handleExistingUserLogin = async (e) => {
     e.preventDefault()
-    console.log("SIS Code:", sisCode)
-    console.log("Password:", password)
-
+    const walletRecovered = await recoverWalletfromLocalStorage(password)
+    
+    if (!walletRecovered || !(walletRecovered instanceof ethers.HDNodeWallet)) {
+      throw new Error("Error al generar la wallet");
+    }
+    
     const contractStudentManagementToGetData =
-    LoginService.connectToManagementCredentialContractToGetData();
+    LoginService.connectToManagementCredentialContractToSetData(walletRecovered);
 
     if (!contractStudentManagementToGetData) {
       console.log("Error: No se pudo conectar con el contrato.");
@@ -38,6 +42,7 @@ export default function Login() {
     }
 
     try {
+      
       const passwordRecovered = await contractStudentManagementToGetData.getStudentPassword(sisCode);
       const addresAndIPFSHash = await contractStudentManagementToGetData.getAddressAndIPFSHash(sisCode);
       const balance = await LoginService.getBalance(addresAndIPFSHash[0]);
@@ -47,17 +52,15 @@ export default function Login() {
         return
       }   
 
-      console.log("Balance:",balance)
-      console.log("Dirección e IPFS Hash Recuperados:",addresAndIPFSHash[0],
-                                                      addresAndIPFSHash[1]);
       navigate("/wallet", {
         state: {    
+          wallet:walletRecovered,
           hashIPFS: addresAndIPFSHash[1],
-          address: addresAndIPFSHash[0],  
           balance: balance
         }
       });
-                                                    } catch (error) {       
+                                                   
+    } catch (error) {       
         console.error("Error al recuperar el código SIS:", error);
     }
     
@@ -65,7 +68,6 @@ export default function Login() {
 
   const handleNewUserLogin = (e) => {
     e.preventDefault()
-    console.log("SIS Code:", sisCode)
     setShowSeedModal(true)
   }
 
@@ -81,6 +83,10 @@ export default function Login() {
     const walletGenerated = 
     LoginService.getWalletAndPKFromMnemonicPhrase(rebuiltPhrase)
     setWallet(walletGenerated)
+
+    if (!walletGenerated || !(walletGenerated instanceof ethers.HDNodeWallet)) {
+      throw new Error("Error al generar la wallet");
+    }
     
     const contractStudentManagementToGetData =
     LoginService.connectToManagementCredentialContractToGetData();
@@ -89,19 +95,6 @@ export default function Login() {
       console.log("Error: No se pudo conectar con el contrato.");
       return;
     }
-    console.log("Dirección Generada:",walletGenerated.address)
-
-    try {
-
-      const sisCodeRecovered = await contractStudentManagementToGetData.verifySISCodeByWalletAddres(walletGenerated.address);
-      console.log("Código SIS Recuperado:", sisCodeRecovered);
-    } catch (error) {
-
-      console.error("Error al recuperar el código SIS:", error);
-    }
-
-    
-    console.log("Frase Semilla:",rebuiltPhrase)
     setShowSeedModal(false)
     setShowPasswordModal(true)
   }
@@ -121,7 +114,8 @@ export default function Login() {
     } 
 
     try {
-      const addresAndIPFSHash = await contractStudentManagementToGetData.getAddressAndIPFSHash(sisCode); 
+      encryptWalletAndSAfe(wallet,newPassword)
+      const addresAndIPFSHash = await contractStudentManagementToSetData.getAddressAndIPFSHash(sisCode); 
       const passwordHash = keccak256(toUtf8Bytes(newPassword));
       await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
     
@@ -132,14 +126,38 @@ export default function Login() {
 
       navigate("/wallet",{
         state: { 
+          wallet:wallet,
           hashIPFS: addresAndIPFSHash[1],
-          address: addresAndIPFSHash[0],
           balance: balance
         }
       });
     } catch (error) {
       console.error("Error setting password:", error);
       setError("Error al establecer la contraseña");
+    }
+  }
+
+  const encryptWalletAndSAfe = async (newWallet,password) =>{
+    const encryptedWallet = await  newWallet.encrypt(password)
+    localStorage.setItem("encryptedWallet",encryptedWallet)
+  }
+
+  const recoverWalletfromLocalStorage = async (password) => {
+    try {
+      const encryptedWallet = localStorage.getItem("encryptedWallet");
+      const walletT = await Wallet.fromEncryptedJson(encryptedWallet, password);
+      
+      let hdWallet;
+      if (!(walletT instanceof ethers.HDNodeWallet)) {
+        hdWallet = ethers.HDNodeWallet.fromPhrase(walletT.mnemonic.phrase);
+      } else {
+        hdWallet = walletT;
+      }
+      
+      return hdWallet;
+    } catch (error) {
+      console.error("Error recuperando wallet:", error);
+      throw error;
     }
   }
 

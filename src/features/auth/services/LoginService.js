@@ -1,4 +1,4 @@
-import {Wallet,ethers} from 'ethers';
+import {HDNodeWallet,ethers} from 'ethers';
 import abiStudentManagement from '../../../contracts/abi/abiStudentManagement';
 import provider from '../../../contracts/conecction/blockchainConnection';
 
@@ -20,7 +20,7 @@ class FirstLoginService {
     }
 
     getWalletAndPKFromMnemonicPhrase(phrase) {
-        const wallet = Wallet.fromPhrase(phrase);
+        const wallet = HDNodeWallet.fromPhrase(phrase);
         return wallet;
     }
 
