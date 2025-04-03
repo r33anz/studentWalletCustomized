@@ -1,10 +1,10 @@
-import React, { useState,useEffect } from "react";
+import React, { useState,useEffect,useCallback } from "react";
 import { WalletHeader } from "./components/WalletHeader";
 import { IPFSCard } from "./components/IPFSCard";
 import { KardexCard } from "./components/KardexCard";
 import { useWallet } from "./WalletContext";
-import { useLocation } from "react-router-dom";
 import { ethers } from "ethers";
+import WalletService from "./services/WalletService";
 
 export default function Wallet() {
   const { walletData } = useWallet();
@@ -13,12 +13,17 @@ export default function Wallet() {
   const [balance,setBalance] = useState("");
   const [ipfsHash,setIPFSHash] = useState("");
   const [activeTab, setActiveTab] = useState("ipfs");
+  const [sisCode, setSisCode] = useState("")
+  const [walletService, setWalletService] = useState(null);
 
   useEffect(() => {
     if (walletData) {
+
       setWalletAddres(walletData.wallet.address)
       setBalance(walletData.balance+" TBNB")
-      if(walletData.ipfsHash){
+      setSisCode(walletData.sisCode)
+
+      if(walletData.hashIPFS){
         setIPFSHash(walletData.hashIPFS)
       }else{
         setIPFSHash("Sin hash,solicitelo en la seccion de kardex.")
@@ -51,6 +56,46 @@ export default function Wallet() {
     }
   }, [walletData]);
 
+  useEffect(() => {
+    if (Wallet) {
+      const service = new WalletService(Wallet);
+      setWalletService(service);
+    }
+  }, [Wallet]);
+
+  
+  const refreshWalletData = useCallback(async () => {
+    if (!walletService || !sisCode) return;
+    
+    try {
+      const [hash, balanceAmount] = await walletService.recoverIpfsHashAndBalance(sisCode);
+      setIPFSHash(hash);
+      setBalance(balanceAmount);
+    } catch (error) {
+      console.error("Error refreshing wallet data:", error);
+      setError("Error al actualizar datos de la wallet");
+    }
+  }, [walletService, sisCode]);
+
+  useEffect(() => {
+    if (!walletService || !sisCode) return;
+    
+    refreshWalletData();
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshWalletData();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', refreshWalletData);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', refreshWalletData);
+    };
+  }, [walletService, sisCode, refreshWalletData]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);

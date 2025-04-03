@@ -7,7 +7,12 @@ import { ethers } from "ethers";
 export const KardexCard = () => {
   const { walletData } = useWallet();
   const [wallet, setWallet] = useState(null)
-  const [error, setError] = useState(null);
+  const [sisCode, setSisCode] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success");
 
   useEffect(() => {
     if (walletData?.wallet) {
@@ -34,10 +39,15 @@ export const KardexCard = () => {
         setError("No se pudo reconstruir la wallet");
       }
     }
+
+    if(walletData?.sisCode){
+      setSisCode(walletData.sisCode)
+      
+    }
   }, [walletData]);
   
   
-  const handleReqestKardex = () =>{
+  const handleReqestKardex = async () =>{
     try {
       if (!wallet || !(wallet instanceof ethers.HDNodeWallet)) {
         throw new Error("Error al generar la wallet");
@@ -61,12 +71,32 @@ export const KardexCard = () => {
         throw new Error("No se pudo crear la instancia del contrato");
       }
 
-      console.log("Contrato conectado correctamente:", contract);
+      try {
+        await contract.requestKardex(sisCode)
+        setModalMessage("¡Solicitud de kardex enviada con éxito! Su hash IPFS será actualizado pronto.");
+        setModalType("success");
+        setShowModal(true);
+      } catch (error) {
+        console.error(error)
+        setModalMessage(`Error al solicitar kardex: ${error.message || "Revise la consola para más detalles"}`);
+        setModalType("error");
+        setShowModal(true);
+      }
+
     } catch (error) {
       console.error("Error en handleReqestKardex:", error);
       setError(error.message);
+      setModalMessage(`Error: ${error.message}`);
+      setModalType("error");
+      setShowModal(true);
+    }finally {
+      setIsLoading(false);
     }
   }
+
+  const closeModal = () => {
+    setShowModal(false);
+  };
 
   return (
     <div className="p-6 text-center space-y-4">
@@ -95,6 +125,73 @@ export const KardexCard = () => {
       >
         Solicitar Kardex
       </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 transform transition-all">
+            <div className="text-center">
+              {modalType === "success" ? (
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                  <svg
+                    className="h-6 w-6 text-green-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+              ) : (
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <svg
+                    className="h-6 w-6 text-red-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </div>
+              )}
+              <h3
+                className={`mt-4 text-lg font-medium ${
+                  modalType === "success" ? "text-green-900" : "text-red-900"
+                }`}
+              >
+                {modalType === "success" ? "¡Operación Exitosa!" : "Error"}
+              </h3>
+              <p className="mt-2 text-sm text-gray-600">{modalMessage}</p>
+              <div className="mt-6">
+                <button
+                  type="button"
+                  className={`inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white ${
+                    modalType === "success"
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : "bg-red-500 hover:bg-red-600"
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    modalType === "success"
+                      ? "focus:ring-orange-500"
+                      : "focus:ring-red-500"
+                  } transition-colors duration-200`}
+                  onClick={closeModal}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -49,7 +49,7 @@ const abiStudentManagement =   [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "string",
         "name": "codSIS",
         "type": "string"
@@ -68,7 +68,7 @@ const abiStudentManagement =   [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "string",
         "name": "codSIS",
         "type": "string"

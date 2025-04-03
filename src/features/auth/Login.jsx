@@ -32,7 +32,7 @@ export default function Login() {
     if (!walletRecovered || !(walletRecovered instanceof ethers.HDNodeWallet)) {
       throw new Error("Error al generar la wallet");
     }
-    
+
     const contractStudentManagementToGetData =
     LoginService.connectToManagementCredentialContractToSetData(walletRecovered);
 
@@ -56,7 +56,8 @@ export default function Login() {
         state: {    
           wallet:walletRecovered,
           hashIPFS: addresAndIPFSHash[1],
-          balance: balance
+          balance: balance,
+          sisCode:sisCode
         }
       });
                                                    
@@ -128,7 +129,8 @@ export default function Login() {
         state: { 
           wallet:wallet,
           hashIPFS: addresAndIPFSHash[1],
-          balance: balance
+          balance: balance,
+          sisCode:sisCode
         }
       });
     } catch (error) {
