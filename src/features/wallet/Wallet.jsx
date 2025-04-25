@@ -66,7 +66,7 @@ export default function Wallet() {
   
   const refreshWalletData = useCallback(async () => {
     if (!walletService || !sisCode) return;
-    
+    console.log(sisCode)
     try {
       const [hash, balanceAmount] = await walletService.recoverIpfsHashAndBalance(sisCode);
       setIPFSHash(hash);

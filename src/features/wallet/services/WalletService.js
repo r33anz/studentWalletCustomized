@@ -20,7 +20,7 @@ class WalletService{
         try {
             if (!this.wallet || !sisCode) {
               console.warn("Wallet not initialized or sisCode missing");
-              return ["No hash available", "0 TBNB"];
+              return ["Sin hash,solicitelo en la seccion de kardex.", "0 TBNB"];
             }
 
             const [addressAndIPFSHashResult, balanceResult] = await Promise.all([
@@ -28,7 +28,7 @@ class WalletService{
               this.getBalance(this.wallet.address)
             ]);
       
-            const hash = addressAndIPFSHashResult[1] || "No hash available";
+            const hash = addressAndIPFSHashResult[1] || "Sin hash,solicitelo en la seccion de kardex.";
             const balance = `${balanceResult} TBNB`;
       
             return [hash, balance];
