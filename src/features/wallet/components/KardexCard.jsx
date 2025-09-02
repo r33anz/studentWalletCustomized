@@ -3,96 +3,113 @@ import { useWallet } from "../WalletContext";
 import provider from "../../../contracts/conecction/blockchainConnection";
 import abiStudentManagement from "../../../contracts/abi/abiStudentManagement";
 import { ethers } from "ethers";
+import { PriceOracleService } from "../services/oracleService";
 
 export const KardexCard = () => {
-  const { walletData } = useWallet();
-  const [wallet, setWallet] = useState(null)
+  const { walletData, balance, refreshWalletData } = useWallet();
+  const [wallet, setWallet] = useState(null);
   const [sisCode, setSisCode] = useState("");
-  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
+  const [requiredEth, setRequiredEth] = useState("0");
+  const [ethPrice, setEthPrice] = useState("0");
+
+  const TX_COST_IN_USD = process.env.REACT_APP_TX_COST_USD || 2;
 
   useEffect(() => {
     if (walletData?.wallet) {
-      try {
-        let reconstructedWallet;
-        if (!(walletData.wallet instanceof ethers.HDNodeWallet)) {
-          if (walletData.wallet.mnemonic && walletData.wallet.mnemonic.phrase) {
-            reconstructedWallet = ethers.HDNodeWallet.fromPhrase(
-              walletData.wallet.mnemonic.phrase
-            );
-          } else {
-            reconstructedWallet = new ethers.HDNodeWallet(
-              walletData.wallet.privateKey, 
-              walletData.wallet.publicKey, 
-              walletData.wallet.address
-            );
-          }
-        } else {
-          reconstructedWallet = walletData.wallet;
-        }
-        setWallet(reconstructedWallet);
-      } catch (err) {
-        console.error("Error reconstruyendo wallet:", err);
-        setError("No se pudo reconstruir la wallet");
-      }
+      setWallet(walletData.wallet);
     }
-
-    if(walletData?.sisCode){
-      setSisCode(walletData.sisCode)
-      
+    if (walletData?.sisCode) {
+      setSisCode(walletData.sisCode);
     }
   }, [walletData]);
   
-  
-  const handleReqestKardex = async () =>{
-    try {
-      if (!wallet || !(wallet instanceof ethers.HDNodeWallet)) {
-        throw new Error("Error al generar la wallet");
-      }
-
-      const contractAddressStudentManagement = 
-        process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
+  useEffect(() => {
+    const fetchEthPrice = async () => {
+      if (!wallet) return;
       
-      if (!provider) {
-        throw new Error("No se pudo conectar a la blockchain");
-      }
-      
-      const connectedWallet = wallet.connect(provider)
-      const contract = new ethers.Contract(
-        contractAddressStudentManagement,
-        abiStudentManagement,
-        connectedWallet
-      );
-
-      if (!contract) {
-        throw new Error("No se pudo crear la instancia del contrato");
-      }
-
       try {
-        await contract.requestKardex(sisCode)
-        setModalMessage("¡Solicitud de kardex enviada con éxito! Su hash IPFS será actualizado pronto.");
-        setModalType("success");
-        setShowModal(true);
+        const oracle = new PriceOracleService(provider);
+        const price = await oracle.getEthPriceInUSD();
+        setEthPrice(price.toFixed(2));
+        
+        // Calcular ETH requeridos
+        const required = await oracle.calculateRequiredEth(TX_COST_IN_USD);
+        setRequiredEth(required.toFixed(6));
       } catch (error) {
-        console.error(error)
-        setModalMessage(`Error al solicitar kardex: ${error.message || "Revise la consola para más detalles"}`);
+        console.error("Error fetching ETH price:", error);
+        setModalMessage("Error al obtener el precio de ETH");
         setModalType("error");
         setShowModal(true);
       }
+    };
 
-    } catch (error) {
-      console.error("Error en handleReqestKardex:", error);
-      setError(error.message);
-      setModalMessage(`Error: ${error.message}`);
+    fetchEthPrice();
+  }, [wallet, TX_COST_IN_USD]);
+
+  const handleRequestConfirmation = () => {
+    if (Number(requiredEth) <= 0) {
+      setModalMessage("Esperando datos de conversión...");
       setModalType("error");
       setShowModal(true);
-    }finally {
-      setIsLoading(false);
+      return;
     }
-  }
+    setShowConfirmationModal(true);
+  };
+
+  const handleCancelTransaction = () => {
+    setShowConfirmationModal(false);
+  };
+
+  const handleConfirmTransaction = async () => {
+    setShowConfirmationModal(false);
+    setIsLoading(true);
+    try {
+      await handleRequestKardex();
+      setModalMessage("¡Solicitud enviada! Pronto recivira su nuevo NFT Kardex.");
+      setModalType("success");
+      await refreshWalletData();
+    } catch (error) {
+      setModalMessage(`Error: ${error.reason || error.message}`);
+      setModalType("error");
+    } finally {
+      setIsLoading(false);
+      setShowModal(true);
+    }
+  };
+  
+  const handleRequestKardex = async () => {
+    if (!wallet || !(wallet instanceof ethers.HDNodeWallet)) {
+      throw new Error("Error al generar la wallet");
+    }
+
+    const requiredWei = ethers.parseEther(requiredEth);
+    const currentBalance = await provider.getBalance(wallet.address);
+    if (currentBalance < requiredWei) {
+      throw new Error(`Saldo insuficiente. Necesitas al menos ${requiredEth} ETH ($${TX_COST_IN_USD} USD)`);
+    }
+
+    const contractAddressStudentManagement = 
+      process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
+    
+    const connectedWallet = wallet.connect(provider);
+    const contract = new ethers.Contract(
+      contractAddressStudentManagement,
+      abiStudentManagement,
+      connectedWallet
+    );
+
+    const tx = await contract.requestKardex(sisCode, { 
+      value: requiredWei 
+    });
+    
+    await tx.wait();
+  };
+
 
   const closeModal = () => {
     setShowModal(false);
@@ -120,12 +137,63 @@ export const KardexCard = () => {
       <p className="text-sm text-gray-600 max-w-md mx-auto">
         Al solicitar un nuevo kardex, se generará un nuevo hash IPFS con tu información académica actualizada.
       </p>
-      <button className="px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-200"
-          onClick={handleReqestKardex}
+      <button 
+        className="px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-600 transition-colors duration-200"
+        onClick={handleRequestConfirmation}
+        disabled={isLoading}
       >
-        Solicitar Kardex
+        {isLoading ? "Procesando..." : "Solicitar Kardex"}
       </button>
 
+      {/* Modal de Confirmación */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 transform transition-all">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                <svg
+                  className="h-6 w-6 text-yellow-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                Confirmar Solicitud de Kardex
+              </h3>
+              <p className="mt-2 text-sm text-gray-600">
+                ¿Estás seguro que deseas solicitar un nuevo kardex? 
+                Esta operación tendrá un costo de <span className="font-bold">{TX_COST_IN_USD} USD</span>.
+              </p>
+              <div className="mt-6 flex justify-center space-x-4">
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+                  onClick={handleCancelTransaction}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-orange-500 text-white rounded-md font-medium hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-200"
+                  onClick={handleConfirmTransaction}
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Resultado */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 transform transition-all">
@@ -193,6 +261,6 @@ export const KardexCard = () => {
         </div>
       )}
     </div>
-  )
+  );
 }
 

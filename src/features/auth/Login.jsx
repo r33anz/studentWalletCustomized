@@ -7,6 +7,8 @@ import { SetPasswordModal } from "./components/SetPasswordModal";
 import LoginService from "./services/LoginService";
 import { keccak256,toUtf8Bytes,Wallet } from "ethers";
 import { ethers } from "ethers";
+import provider from "../../contracts/conecction/blockchainConnection";
+import abiKardexNFT from "../../contracts/abi/abiKardexNFT";
 
 export default function Login() {
   const [isNewUser, setIsNewUser] = useState(true)
@@ -24,6 +26,48 @@ export default function Login() {
   useEffect(() => {
     
   }, [wallet])
+
+  const fetchNFTData = async (walletAddress) => {
+    console.time('fetchNFTData_total');
+    try {
+      console.time('contract_connection');
+      const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_KARDEX_NFT;
+      const nftContract = new ethers.Contract(contractAddress, abiKardexNFT, provider);
+
+      const hasNft = await nftContract.hasKardex(walletAddress);
+      if (!hasNft) {
+        return { hasNFT: false, message: "No tienes un NFT Kardex aún. Solicítalo en la sección Kardex." };
+      }
+
+      console.time('token_data_fetch');
+      const [tokenId, kardexInfo] = await Promise.all([
+        nftContract.studentToToken(walletAddress),
+        nftContract.getStudentKardex(walletAddress)
+      ]);
+
+      const tokenURI = await nftContract.tokenURI(tokenId);
+
+      let cid = tokenURI.replace(`${process.env.REACT_APP_IPFS_GATEWAY}`, "");
+      if (tokenURI.startsWith("ipfs://")) cid = tokenURI.replace("ipfs://", "");
+      
+      const response = await fetch(`${process.env.REACT_APP_IPFS_GATEWAY}${cid}`);
+
+      if (!response.ok) throw new Error("Error fetching metadata");
+      const metadata = await response.json();
+
+      console.timeEnd('fetchNFTData_total');
+      return { 
+        hasNFT: true,
+        tokenId: Number(tokenId), 
+        metadata, 
+        kardexInfo,
+        loadedAt: Date.now()
+      };
+    } catch (err) {
+      console.error("Error fetching NFT data:", err);
+      return { hasNFT: false, error: err.message };
+    }
+  };
 
   const handleExistingUserLogin = async (e) => {
     e.preventDefault()
@@ -43,10 +87,13 @@ export default function Login() {
 
     try {
       
-      const passwordRecovered = await contractStudentManagementToGetData.getStudentPassword(sisCode);
-      const addresAndIPFSHash = await contractStudentManagementToGetData.getAddressAndIPFSHash(sisCode);
-      const balance = await LoginService.getBalance(addresAndIPFSHash[0]);
-      
+      const [passwordRecovered, address, balance, nftData] = await Promise.all([
+        contractStudentManagementToGetData.getStudentPassword(sisCode),
+        contractStudentManagementToGetData.getStudentAddressBySISCode(sisCode),
+        LoginService.getBalance(walletRecovered.address),
+        fetchNFTData(walletRecovered.address) 
+      ]);
+
       if(passwordRecovered !== keccak256(toUtf8Bytes(password))) {
         setError("Código SIS o contraseña incorrectos") 
         return
@@ -55,9 +102,10 @@ export default function Login() {
       navigate("/wallet", {
         state: {    
           wallet:walletRecovered,
-          hashIPFS: addresAndIPFSHash[1],
           balance: balance,
-          sisCode:sisCode
+          sisCode:sisCode,
+          nftData:nftData,
+          preloaded: true
         }
       });
                                                    
@@ -116,21 +164,23 @@ export default function Login() {
 
     try {
       encryptWalletAndSAfe(wallet,newPassword)
-      const addresAndIPFSHash = await contractStudentManagementToSetData.getAddressAndIPFSHash(sisCode); 
+    
+      const [address, balance, nftData] = await Promise.all([
+        contractStudentManagementToSetData.getStudentAddressBySISCode(sisCode),
+        LoginService.getBalance(wallet.address),
+        fetchNFTData(wallet.address)
+      ]);
+
       const passwordHash = keccak256(toUtf8Bytes(newPassword));
       await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
-    
-      console.log("Dirección e IPFS Hash Recuperados:",addresAndIPFSHash[0],
-                                                      addresAndIPFSHash[1]);  
-      const balance = await LoginService.getBalance(addresAndIPFSHash[0]);
-      console.log("Balance:",balance)
 
-      navigate("/wallet",{
-        state: { 
-          wallet:wallet,
-          hashIPFS: addresAndIPFSHash[1],
+      navigate("/wallet", {
+        state: {
+          wallet: wallet,
           balance: balance,
-          sisCode:sisCode
+          sisCode: sisCode,
+          nftData: nftData,
+          preloaded: true
         }
       });
     } catch (error) {
