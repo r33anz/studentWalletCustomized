@@ -49,7 +49,7 @@ class FirstLoginService {
     async getBalance(walletAddress) {
         try {
           const balance = await provider.getBalance(walletAddress);
-          return ethers.formatEther(balance);
+          return balance;
         } catch (error) {
           console.error("Error fetching balance:", error);
           throw error;

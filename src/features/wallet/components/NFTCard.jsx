@@ -37,7 +37,6 @@ export const NFTViewer = React.memo(() => {
   const handleFileLinkClick = (url) => {
     window.open(url, "_blank");
   };
-
   
   if (nftInfo.error) {
     return (
@@ -57,31 +56,55 @@ export const NFTViewer = React.memo(() => {
   const { data: nftData } = nftInfo;
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <h3 className="text-lg font-medium mb-4 text-gray-800">Tu NFT Kardex</h3>
-      <div className="bg-gray-50 p-4 rounded-lg shadow cursor-pointer hover:shadow-md transition-shadow" onClick={openModal}>
-        <img 
-          src={nftData.metadata.image} 
-          alt="NFT Kardex" 
-          className="w-full h-32 object-cover mb-2 rounded"
-          loading="lazy"
-        />
-        <h4 className="font-medium">{nftData.metadata.name}</h4>
-        <p className="text-sm text-gray-600">
-          Versión: {Number(nftData.kardexInfo.version)} | 
-          Última actualización: {new Date(Number(nftData.kardexInfo.lastUpdated) * 1000).toLocaleDateString()}
-        </p>
-        <p className="text-sm text-gray-600">
-          {nftData.metadata.description.substring(0, 50)}...
-        </p>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div 
+          className="bg-white rounded-lg shadow cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
+          onClick={openModal}
+        >
+          
+          <div className="w-full aspect-square overflow-hidden">
+            <img 
+              src={nftData.metadata.image} 
+              alt="NFT Kardex" 
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkeT0iLjM1ZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMjAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiPk5GVCBJbWFnZTwvdGV4dD48L3N2Zz4=';
+              }}
+            />
+          </div>
+   
+          <div className="p-3">
+            <h4 className="font-medium text-sm truncate">{nftData.metadata.name}</h4>
+            <p className="text-xs text-gray-600 mt-1">
+              V{Number(nftData.kardexInfo.version)} • {new Date(Number(nftData.kardexInfo.lastUpdated) * 1000).toLocaleDateString()}
+            </p>
+            <p className="text-xs text-gray-500 mt-1 truncate">
+              {nftData.metadata.description.substring(0, 40)}...
+            </p>
+          </div>
+        </div>
       </div>
 
       {selectedNFT && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">{selectedNFT.metadata.name}</h3>
-            <p className="mb-4">{selectedNFT.metadata.description}</p>
-            <div className="space-y-2">
+          
+            <div className="mb-4 rounded-lg overflow-hidden">
+              <img 
+                src={selectedNFT.metadata.image} 
+                alt="NFT Kardex" 
+                className="w-full h-auto max-h-64 object-contain mx-auto"
+              />
+            </div>
+            
+            <p className="mb-4 text-sm">{selectedNFT.metadata.description}</p>
+            
+            <div className="space-y-2 text-sm">
               {selectedNFT.metadata.attributes?.map((attr, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span className="font-medium">{attr.trait_type}:</span>
@@ -101,14 +124,14 @@ export const NFTViewer = React.memo(() => {
             <div className="mt-6 space-y-2">
               {selectedNFT.metadata.files?.access_url && (
                 <button 
-                  className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors" 
+                  className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm" 
                   onClick={() => handleFileLinkClick(selectedNFT.metadata.files.access_url)}
                 >
                   Ver Archivos (MFS CID)
                 </button>
               )}
               <button 
-                className="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors" 
+                className="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors text-sm" 
                 onClick={closeModal}
               >
                 Cerrar

@@ -1,3 +1,4 @@
+// WalletProvider.jsx
 import React, { useState, useContext, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
@@ -38,114 +39,108 @@ export const WalletProvider = ({ children }) => {
   }, []);
 
   const refreshWalletData = useCallback(async () => {
-    if (!walletData?.wallet || !walletData?.sisCode) return;
+    if (!walletData?.wallet || !walletData?.sisCode || isRefreshing) return;
 
     setIsRefreshing(true);
     try {
-        const wallet = reconstructWallet(walletData.wallet);
-        const connectedWallet = wallet.connect(provider);
+      const wallet = reconstructWallet(walletData.wallet);
+      const connectedWallet = wallet.connect(provider);
 
-        // Actualizar balance
-        const newBalance = await provider.getBalance(connectedWallet.address);
-        const formattedBalance = ethers.formatEther(newBalance);
-        const nftData = await fetchNFTData(wallet.address);
+      const newBalance = await provider.getBalance(connectedWallet.address);
+      const nftData = await fetchNFTData(wallet.address);
 
-        setWalletData((prev) => ({
-            ...prev,
-            nftData,
-            lastRefreshed: Date.now(),
-        }));
+      setWalletData((prev) => ({
+        ...prev,
+        wallet,
+        balance: ethers.formatEther(newBalance),
+        nftData,
+        lastRefreshed: Date.now(),
+      }));
 
-        setBalance(`${formattedBalance} ETH`);
-
-        return {
-            balance: formattedBalance,
-        };
+      setBalance(`${ethers.formatEther(newBalance)} ETH`);
+      return { balance: ethers.formatEther(newBalance) };
     } catch (error) {
       console.error("Error refreshing wallet:", error);
       throw error;
     } finally {
       setIsRefreshing(false);
     }
-  }, [walletData, reconstructWallet]);
+  }, [walletData, reconstructWallet, isRefreshing]);
 
   const fetchNFTData = useCallback(async (walletAddress) => {
-    console.time('fetchNFTData_total');
     try {
-        console.time('contract_connection');
-        const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_KARDEX_NFT;
-        const nftContract = new ethers.Contract(contractAddress, abiKardexNFT, provider);
-        console.timeEnd('contract_connection');
+      const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_KARDEX_NFT;
+      const nftContract = new ethers.Contract(contractAddress, abiKardexNFT, provider);
 
-        console.time('hasKardex_check');
-        const hasNft = await nftContract.hasKardex(walletAddress);
-        console.timeEnd('hasKardex_check');
-        
-        if (!hasNft) return { hasNFT: false, message: "No tienes un NFT Kardex aún. Solicítalo en la sección Kardex." };
+      const hasNft = await nftContract.hasKardex(walletAddress);
+      if (!hasNft) {
+        return { hasNFT: false, message: "No tienes un NFT Kardex aún. Solicítalo en la sección Kardex." };
+      }
 
-        console.time('token_data_fetch');
-        const [tokenId, kardexInfo, tokenURI] = await Promise.all([
-        nftContract.studentToToken(walletAddress),
+        const tokenId = await nftContract.studentToToken(walletAddress);
+        const [kardexInfo, tokenURI] = await Promise.all([
         nftContract.getStudentKardex(walletAddress),
-        nftContract.tokenURI(tokenId)
+        nftContract.tokenURI(tokenId),
         ]);
-        console.timeEnd('token_data_fetch');
 
-        console.time('ipfs_processing');
-        let cid = tokenURI.replace(`${process.env.REACT_APP_IPFS_GATEWAY}`, "");
-        if (tokenURI.startsWith("ipfs://")) cid = tokenURI.replace("ipfs://", "");
-        console.timeEnd('ipfs_processing');
+      let cid = tokenURI.replace(`${process.env.REACT_APP_IPFS_GATEWAY}`, "");
+      if (tokenURI.startsWith("ipfs://")) cid = tokenURI.replace("ipfs://", "");
 
-        console.time('metadata_fetch');
-        const response = await fetch(`${process.env.REACT_APP_IPFS_GATEWAY}${cid}`);
-        if (!response.ok) throw new Error("Error fetching metadata");
-        const metadata = await response.json();
-        console.timeEnd('metadata_fetch');
+      const response = await fetch(`${process.env.REACT_APP_IPFS_GATEWAY}${cid}`);
+      if (!response.ok) throw new Error("Error fetching metadata");
+      const metadata = await response.json();
 
-        console.timeEnd('fetchNFTData_total');
-        
-        return { 
+      return {
         hasNFT: true,
-        tokenId: Number(tokenId), 
-        metadata, 
+        tokenId: Number(tokenId),
+        metadata,
         kardexInfo,
-        loadedAt: Date.now()
-        };
-    } catch (err) {
-        console.error("Error fetching NFT data:", err);
-        console.timeEnd('fetchNFTData_total');
-        return { hasNFT: false, error: err.message };
-    }
-    }, []);
+        loadedAt: Date.now(),
+      };
+    }catch (err) {
+      console.error("Error fetching NFT data:", err);
+      return { hasNFT: false, error: err.message };
+    } 
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initialize = async () => {
-      if (location.state && location.state.wallet) {
-        try {
-          const wallet = reconstructWallet(location.state.wallet);
-          const connectedWallet = wallet.connect(provider);
-          const initialBalance = await provider.getBalance(connectedWallet.address);
+        if (location.state && location.state.wallet && isMounted) {
+          try {
+              const wallet = reconstructWallet(location.state.wallet);
+              const connectedWallet = wallet.connect(provider);
+              const initialBalance = await provider.getBalance(connectedWallet.address);
+              const nftData = await fetchNFTData(wallet.address);
 
-          setWalletData({
-            ...location.state,
-            wallet, 
-            lastRefreshed: Date.now(), 
-          });
+              setWalletData({
+              wallet,
+              balance: ethers.formatEther(initialBalance),
+              sisCode: location.state.sisCode,
+              nftData,
+              preloaded: location.state.preloaded || false,
+              lastRefreshed: Date.now(),
+              });
 
-          setBalance(`${ethers.formatEther(initialBalance)} ETH`);
-
-          await refreshWalletData();
-        } catch (err) {
-          console.error("Error inicializando wallet:", err);
+              setBalance(`${ethers.formatEther(initialBalance)} ETH`);
+              await refreshWalletData();
+            
+          } catch (err) {
+              console.error("Error inicializando wallet:", err);
+              if (isMounted) navigate("/");
+          }
+        }else if (isMounted && !location.state?.wallet) {
           navigate("/");
         }
-      } else {
-        navigate("/");
-      }
     };
 
     initialize();
-  }, [location, navigate, reconstructWallet, ]);
+
+    return () => {
+        isMounted = false;
+    };
+    }, [location.state, navigate, reconstructWallet]);
 
   return (
     <WalletContext.Provider

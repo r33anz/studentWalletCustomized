@@ -9,8 +9,10 @@ import { keccak256,toUtf8Bytes,Wallet } from "ethers";
 import { ethers } from "ethers";
 import provider from "../../contracts/conecction/blockchainConnection";
 import abiKardexNFT from "../../contracts/abi/abiKardexNFT";
+import { useWallet } from "../wallet/WalletContext";
 
 export default function Login() {
+  const { setWalletData } = useWallet();
   const [isNewUser, setIsNewUser] = useState(true)
   const [password, setPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -28,9 +30,8 @@ export default function Login() {
   }, [wallet])
 
   const fetchNFTData = async (walletAddress) => {
-    console.time('fetchNFTData_total');
+
     try {
-      console.time('contract_connection');
       const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_KARDEX_NFT;
       const nftContract = new ethers.Contract(contractAddress, abiKardexNFT, provider);
 
@@ -39,7 +40,6 @@ export default function Login() {
         return { hasNFT: false, message: "No tienes un NFT Kardex aún. Solicítalo en la sección Kardex." };
       }
 
-      console.time('token_data_fetch');
       const [tokenId, kardexInfo] = await Promise.all([
         nftContract.studentToToken(walletAddress),
         nftContract.getStudentKardex(walletAddress)
@@ -55,7 +55,6 @@ export default function Login() {
       if (!response.ok) throw new Error("Error fetching metadata");
       const metadata = await response.json();
 
-      console.timeEnd('fetchNFTData_total');
       return { 
         hasNFT: true,
         tokenId: Number(tokenId), 
@@ -86,7 +85,6 @@ export default function Login() {
     }
 
     try {
-      
       const [passwordRecovered, address, balance, nftData] = await Promise.all([
         contractStudentManagementToGetData.getStudentPassword(sisCode),
         contractStudentManagementToGetData.getStudentAddressBySISCode(sisCode),
@@ -99,20 +97,25 @@ export default function Login() {
         return
       }   
 
-      navigate("/wallet", {
-        state: {    
-          wallet:walletRecovered,
-          balance: balance,
-          sisCode:sisCode,
-          nftData:nftData,
-          preloaded: true
-        }
+      setWalletData({
+        wallet: walletRecovered,
+        balance: `${ethers.formatEther(balance)} ETH`,
+        sisCode: sisCode,
+        nftData: nftData,
+        preloaded: true,
+        lastRefreshed: Date.now(),
       });
-                                                   
-    } catch (error) {       
-        console.error("Error al recuperar el código SIS:", error);
+      
+      navigate("/wallet", {
+        state: {
+          wallet: walletRecovered,
+          sisCode: sisCode,
+          preloaded: true,
+        },
+      });           
+    }catch (error) {       
+      console.error("Error al recuperar el código SIS:", error);
     }
-    
   }
 
   const handleNewUserLogin = (e) => {
@@ -123,7 +126,6 @@ export default function Login() {
   const  handleVerifySeedPhrase =async () => {
 
     const arrText = LoginService.splitPhrase(seedPhrase)
-    
     if(!LoginService.countWords(arrText)){
       setError("La frase semilla debe tener 12 palabras")
       return
@@ -149,7 +151,6 @@ export default function Login() {
   }
 
   const handleSetPassword = async() => {
-    
     if(newPassword !== confirmPassword) {
       setError("Las contraseñas no coinciden")
       return
@@ -164,7 +165,6 @@ export default function Login() {
 
     try {
       encryptWalletAndSAfe(wallet,newPassword)
-    
       const [address, balance, nftData] = await Promise.all([
         contractStudentManagementToSetData.getStudentAddressBySISCode(sisCode),
         LoginService.getBalance(wallet.address),
@@ -173,15 +173,21 @@ export default function Login() {
 
       const passwordHash = keccak256(toUtf8Bytes(newPassword));
       await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
+      setWalletData({
+        wallet: wallet,
+        balance: `${ethers.formatEther(balance)} ETH`,
+        sisCode: sisCode,
+        nftData: nftData,
+        preloaded: true,
+        lastRefreshed: Date.now(),
+      });
 
       navigate("/wallet", {
         state: {
-          wallet: wallet,
-          balance: balance,
+          wallet: walletRecovered,
           sisCode: sisCode,
-          nftData: nftData,
-          preloaded: true
-        }
+          preloaded: true,
+        },
       });
     } catch (error) {
       console.error("Error setting password:", error);
@@ -217,7 +223,6 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-green-100 flex items-center justify-center p-4">
       <Card className="w-[400px] min-h-[450px] flex flex-col">
         <div className="flex-1 p-6 flex flex-col">
-          {/* Header - Siempre visible */}
           <div className="text-center mb-8">
             <div className="mx-auto bg-orange-500 w-16 h-16 rounded-full flex items-center justify-center mb-4">
               <svg
@@ -267,7 +272,6 @@ export default function Login() {
             </button>
           </div>
 
-          {/* Formularios */}
           {isNewUser ? (
             <form onSubmit={handleNewUserLogin} className="flex-1 flex flex-col">
               <div className="flex-1 space-y-4">
@@ -320,7 +324,6 @@ export default function Login() {
         </div>
       </Card>
 
-      {/* Modal para la frase semilla */}
       <SeedPhraseModal
         isOpen={showSeedModal}
         onClose={() => {
@@ -333,8 +336,7 @@ export default function Login() {
         setError={setError}
         onVerify={handleVerifySeedPhrase}
       />
-  
-      {/* Modal para la contraseña */}  
+   
       <SetPasswordModal
         isOpen={showPasswordModal}
         onClose={() => {
