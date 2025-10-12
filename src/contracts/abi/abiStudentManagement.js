@@ -1,4 +1,4 @@
-const abiStudentManagement = [
+const abiStudentManagement =  [
     {
       "inputs": [
         {
@@ -115,6 +115,25 @@ const abiStudentManagement = [
         }
       ],
       "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "codSIS",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "deliveredAt",
+          "type": "uint256"
+        }
+      ],
+      "name": "KardexDelivered",
       "type": "event"
     },
     {
@@ -246,12 +265,63 @@ const abiStudentManagement = [
     {
       "inputs": [
         {
+          "internalType": "string",
+          "name": "sisCode",
+          "type": "string"
+        }
+      ],
+      "name": "hasActiveKardexRequest",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "name": "hasRequestedKardex",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "initialOwner",
           "type": "address"
         }
       ],
       "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "sisCode",
+          "type": "string"
+        }
+      ],
+      "name": "markKardexAsDelivered",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
