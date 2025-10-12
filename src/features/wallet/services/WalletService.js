@@ -29,6 +29,20 @@ class WalletService{
             return "0";
         }
     }
+    
+    async hasActiveKardexRequest(sisCode) {
+        try {
+            if (!sisCode) {
+                console.warn("No SIS code provided");
+                return false;
+            }
+            const hasRequest = await this.contractStudentManagement.hasActiveKardexRequest(sisCode);
+            return hasRequest;
+        } catch (error) {
+            console.error("Error checking kardex request status:", error);
+            return false;
+        }
+    }
 }
 
 export default WalletService

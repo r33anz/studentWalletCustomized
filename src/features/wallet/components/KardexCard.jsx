@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { PriceOracleService } from "../services/oracleService";
 
 export const KardexCard = () => {
-  const { walletData, balance, refreshWalletData } = useWallet();
+  const { walletData, balance, refreshWalletData, hasActiveRequest, setHasActiveRequest } = useWallet();
   const [wallet, setWallet] = useState(null);
   const [sisCode, setSisCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +37,6 @@ export const KardexCard = () => {
         const price = await oracle.getEthPriceInUSD();
         setEthPrice(price.toFixed(2));
         
-        // Calcular ETH requeridos
         const required = await oracle.calculateRequiredEth(TX_COST_IN_USD);
         setRequiredEth(required.toFixed(6));
       } catch (error) {
@@ -70,8 +69,9 @@ export const KardexCard = () => {
     setIsLoading(true);
     try {
       await handleRequestKardex();
-      setModalMessage("¡Solicitud enviada! Pronto recivira su nuevo NFT Kardex.");
+      setModalMessage("¡Solicitud enviada! Pronto recibirás tu nuevo NFT Kardex.");
       setModalType("success");
+      setHasActiveRequest(true);
       await refreshWalletData();
     } catch (error) {
       setModalMessage(`Error: ${error.reason || error.message}`);
@@ -110,11 +110,60 @@ export const KardexCard = () => {
     await tx.wait();
   };
 
-
   const closeModal = () => {
     setShowModal(false);
   };
 
+  if (hasActiveRequest) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <div className="mx-auto bg-gradient-to-r from-yellow-200 to-orange-100 w-16 h-16 rounded-full flex items-center justify-center shadow-md">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-8 w-8 text-orange-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+        <h3 className="font-medium text-gray-800">Solicitud en Proceso</h3>
+        <p className="text-sm text-gray-600 max-w-md mx-auto">
+          Tu solicitud de kardex está siendo procesada. Por favor espera a que el administrador genere tu nuevo NFT Kardex.
+        </p>
+        <div className="inline-flex items-center px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-full">
+          <svg
+            className="animate-spin h-5 w-5 text-yellow-500 mr-2"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <span className="text-sm font-medium text-yellow-700">En espera</span>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="p-6 text-center space-y-4">
       <div className="mx-auto bg-gradient-to-r from-green-200 to-yellow-100 w-16 h-16 rounded-full flex items-center justify-center shadow-md">
@@ -263,4 +312,3 @@ export const KardexCard = () => {
     </div>
   );
 }
-

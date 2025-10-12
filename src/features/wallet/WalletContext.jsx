@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 import provider from "../../contracts/conecction/blockchainConnection";
 import abiKardexNFT from "../../contracts/abi/abiKardexNFT";
+import WalletService from "./services/WalletService";
 
 const WalletContext = React.createContext();
 export const useWallet = () => useContext(WalletContext);
@@ -12,6 +13,7 @@ export const WalletProvider = ({ children }) => {
   const [walletData, setWalletData] = useState(null);
   const [balance, setBalance] = useState("0 ETH");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasActiveRequest, setHasActiveRequest] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -48,6 +50,11 @@ export const WalletProvider = ({ children }) => {
 
       const newBalance = await provider.getBalance(connectedWallet.address);
       const nftData = await fetchNFTData(wallet.address);
+      
+      // NUEVA CONSULTA V2
+      const walletService = new WalletService(wallet);
+      const activeRequest = await walletService.hasActiveKardexRequest(walletData.sisCode);
+      setHasActiveRequest(activeRequest);
 
       setWalletData((prev) => ({
         ...prev,
@@ -114,6 +121,11 @@ export const WalletProvider = ({ children }) => {
               const initialBalance = await provider.getBalance(connectedWallet.address);
               const nftData = await fetchNFTData(wallet.address);
 
+              // NUEVA CONSULTA V2
+              const walletService = new WalletService(wallet);
+              const activeRequest = await walletService.hasActiveKardexRequest(location.state.sisCode);
+              setHasActiveRequest(activeRequest);
+
               setWalletData({
               wallet,
               balance: ethers.formatEther(initialBalance),
@@ -150,6 +162,8 @@ export const WalletProvider = ({ children }) => {
         balance,
         refreshWalletData,
         isRefreshing,
+        hasActiveRequest,
+        setHasActiveRequest,
       }}
     >
       {children}
