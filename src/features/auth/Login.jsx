@@ -164,7 +164,7 @@ export default function Login() {
     } 
 
     try {
-      encryptWalletAndSAfe(wallet,newPassword)
+      await encryptWalletAndSafe(wallet, newPassword);
       const [address, balance, nftData] = await Promise.all([
         contractStudentManagementToSetData.getStudentAddressBySISCode(sisCode),
         LoginService.getBalance(wallet.address),
@@ -173,6 +173,7 @@ export default function Login() {
 
       const passwordHash = keccak256(toUtf8Bytes(newPassword));
       await contractStudentManagementToSetData.setStudentPassword(sisCode, passwordHash);
+      
       setWalletData({
         wallet: wallet,
         balance: `${ethers.formatEther(balance)} ETH`,
@@ -184,7 +185,7 @@ export default function Login() {
 
       navigate("/wallet", {
         state: {
-          wallet: walletRecovered,
+          wallet: wallet, 
           sisCode: sisCode,
           preloaded: true,
         },
@@ -195,14 +196,23 @@ export default function Login() {
     }
   }
 
-  const encryptWalletAndSAfe = async (newWallet,password) =>{
-    const encryptedWallet = await  newWallet.encrypt(password)
-    localStorage.setItem("encryptedWallet",encryptedWallet)
+  const encryptWalletAndSafe = async (newWallet, password) => {
+    try {
+      const encryptedWallet = await newWallet.encrypt(password);
+      localStorage.setItem("encryptedWallet", encryptedWallet);
+    } catch (error) {
+      console.error("Error encrypting wallet:", error);
+      throw error;
+    }
   }
 
   const recoverWalletfromLocalStorage = async (password) => {
     try {
       const encryptedWallet = localStorage.getItem("encryptedWallet");
+      if (!encryptedWallet) {
+        throw new Error("No se encontró wallet encriptada en localStorage");
+      }
+      
       const walletT = await Wallet.fromEncryptedJson(encryptedWallet, password);
       
       let hdWallet;
