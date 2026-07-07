@@ -1,48 +1,56 @@
 import abiStudentManagement from "../../../contracts/abi/abiStudentManagement";
-import provider from "../../../contracts/conecction/blockchainConnection";
+import provider from "../../../contracts/connection/blockchainConnection";
 import { ethers } from "ethers";
 
-class WalletService{
-    constructor(walletInstance){
-        this.wallet = walletInstance
-        
-        if (this.wallet) {
-            const contractAddressStudentManagement = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
-            this.contractStudentManagement = new ethers.Contract(
-              contractAddressStudentManagement,
-              abiStudentManagement,
-              this.wallet.connect(provider)
-            );
-        }
+var TX_FEE_ETH = process.env.REACT_APP_TX_FEE_ETH || "0.001";
+var contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
+var cachedContract = null;
+var cachedWalletAddress = null;
+
+class WalletService {
+  constructor(walletInstance) {
+    this.wallet = walletInstance;
+
+    if (this.wallet) {
+      if (cachedContract && cachedWalletAddress === this.wallet.address) {
+        this.contract = cachedContract;
+      } else {
+        this.contract = new ethers.Contract(
+          contractAddress,
+          abiStudentManagement,
+          this.wallet.connect(provider)
+        );
+        cachedContract = this.contract;
+        cachedWalletAddress = this.wallet.address;
+      }
+    }
+  }
+
+  async hasActiveKardexRequest(sisCode) {
+    try {
+      if (!sisCode) return false;
+      return await this.contract.hasActiveKardexRequest(sisCode);
+    } catch (error) {
+      console.error("Error checking kardex request status:", error);
+      return false;
+    }
+  }
+
+  async requestKardex(sisCode) {
+    if (!this.wallet || !(this.wallet instanceof ethers.HDNodeWallet)) {
+      throw new Error("Wallet no válida. Cierra sesión e ingresa de nuevo.");
     }
 
-    async getBalance(walletAddress) {
-        try {
-            if (!walletAddress) {
-                console.warn("No wallet address provided");
-                return "0";
-            }
-            const balance = await provider.getBalance(walletAddress);
-            return ethers.formatEther(balance);
-        } catch (error) {
-            console.error("Error fetching balance:", error);
-            return "0";
-        }
+    var requiredWei = ethers.parseEther(TX_FEE_ETH);
+    var currentBalance = await provider.getBalance(this.wallet.address);
+
+    if (currentBalance < requiredWei) {
+      throw new Error("Saldo insuficiente. Necesitas al menos " + TX_FEE_ETH + " ETH.");
     }
-    
-    async hasActiveKardexRequest(sisCode) {
-        try {
-            if (!sisCode) {
-                console.warn("No SIS code provided");
-                return false;
-            }
-            const hasRequest = await this.contractStudentManagement.hasActiveKardexRequest(sisCode);
-            return hasRequest;
-        } catch (error) {
-            console.error("Error checking kardex request status:", error);
-            return false;
-        }
-    }
+
+    var tx = await this.contract.requestKardex(sisCode, { value: requiredWei });
+    await tx.wait();
+  }
 }
 
-export default WalletService
+export default WalletService;

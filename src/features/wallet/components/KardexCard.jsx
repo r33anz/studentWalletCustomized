@@ -1,314 +1,127 @@
-import React,{useState,useEffect} from "react";
+import React, { useState } from "react";
 import { useWallet } from "../WalletContext";
-import provider from "../../../contracts/conecction/blockchainConnection";
-import abiStudentManagement from "../../../contracts/abi/abiStudentManagement";
-import { ethers } from "ethers";
-import { PriceOracleService } from "../services/oracleService";
+import { Button } from "../../shared/components/Button";
+import { Modal, ModalIcon } from "../../shared/components/Modal";
+import WalletService from "../services/WalletService";
+import { getUserFriendlyError } from "../../shared/utils/errorHandler";
 
-export const KardexCard = () => {
-  const { walletData, balance, refreshWalletData, hasActiveRequest, setHasActiveRequest } = useWallet();
-  const [wallet, setWallet] = useState(null);
-  const [sisCode, setSisCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [modalMessage, setModalMessage] = useState("");
-  const [modalType, setModalType] = useState("success");
-  const [requiredEth, setRequiredEth] = useState("0");
-  const [ethPrice, setEthPrice] = useState("0");
+var TX_FEE_ETH = process.env.REACT_APP_TX_FEE_ETH || "0.001";
 
-  const TX_COST_IN_USD = process.env.REACT_APP_TX_COST_USD || 2;
+export var KardexCard = function () {
+  var { walletData, refreshWalletData, hasActiveRequest, setHasActiveRequest } = useWallet();
+  var [isLoading, setIsLoading] = useState(false);
+  var [showResultModal, setShowResultModal] = useState(false);
+  var [showConfirmModal, setShowConfirmModal] = useState(false);
+  var [modalMessage, setModalMessage] = useState("");
+  var [modalType, setModalType] = useState("success");
 
-  useEffect(() => {
-    if (walletData?.wallet) {
-      setWallet(walletData.wallet);
-    }
-    if (walletData?.sisCode) {
-      setSisCode(walletData.sisCode);
-    }
-  }, [walletData]);
-  
-  useEffect(() => {
-    const fetchEthPrice = async () => {
-      if (!wallet) return;
-      
-      try {
-        const oracle = new PriceOracleService(provider);
-        const price = await oracle.getEthPriceInUSD();
-        setEthPrice(price.toFixed(2));
-        
-        const required = await oracle.calculateRequiredEth(TX_COST_IN_USD);
-        setRequiredEth(required.toFixed(6));
-      } catch (error) {
-        console.error("Error fetching ETH price:", error);
-        setModalMessage("Error al obtener el precio de ETH");
-        setModalType("error");
-        setShowModal(true);
-      }
-    };
+  var wallet = walletData?.wallet;
+  var sisCode = walletData?.sisCode || "";
 
-    fetchEthPrice();
-  }, [wallet, TX_COST_IN_USD]);
-
-  const handleRequestConfirmation = () => {
-    if (Number(requiredEth) <= 0) {
-      setModalMessage("Esperando datos de conversión...");
-      setModalType("error");
-      setShowModal(true);
-      return;
-    }
-    setShowConfirmationModal(true);
-  };
-
-  const handleCancelTransaction = () => {
-    setShowConfirmationModal(false);
-  };
-
-  const handleConfirmTransaction = async () => {
-    setShowConfirmationModal(false);
+  var handleConfirmTransaction = async function () {
+    setShowConfirmModal(false);
     setIsLoading(true);
     try {
-      await handleRequestKardex();
+      var service = new WalletService(wallet);
+      await service.requestKardex(sisCode);
+
       setModalMessage("¡Solicitud enviada! Pronto recibirás tu nuevo NFT Kardex.");
       setModalType("success");
       setHasActiveRequest(true);
       await refreshWalletData();
-    } catch (error) {
-      setModalMessage(`Error: ${error.reason || error.message}`);
+    } catch (err) {
+      console.error("[Kardex Request Error]", err);
+      setModalMessage(getUserFriendlyError(err));
       setModalType("error");
     } finally {
       setIsLoading(false);
-      setShowModal(true);
+      setShowResultModal(true);
     }
-  };
-  
-  const handleRequestKardex = async () => {
-    if (!wallet || !(wallet instanceof ethers.HDNodeWallet)) {
-      throw new Error("Error al generar la wallet");
-    }
-
-    const requiredWei = ethers.parseEther(requiredEth);
-    const currentBalance = await provider.getBalance(wallet.address);
-    if (currentBalance < requiredWei) {
-      throw new Error(`Saldo insuficiente. Necesitas al menos ${requiredEth} ETH ($${TX_COST_IN_USD} USD)`);
-    }
-
-    const contractAddressStudentManagement = 
-      process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
-    
-    const connectedWallet = wallet.connect(provider);
-    const contract = new ethers.Contract(
-      contractAddressStudentManagement,
-      abiStudentManagement,
-      connectedWallet
-    );
-
-    const tx = await contract.requestKardex(sisCode, { 
-      value: requiredWei 
-    });
-    
-    await tx.wait();
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
   };
 
   if (hasActiveRequest) {
     return (
       <div className="p-6 text-center space-y-4">
-        <div className="mx-auto bg-gradient-to-r from-yellow-200 to-orange-100 w-16 h-16 rounded-full flex items-center justify-center shadow-md">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-8 w-8 text-orange-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
+        <div className="mx-auto bg-warning-bg w-16 h-16 rounded-2xl flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <h3 className="font-medium text-gray-800">Solicitud en Proceso</h3>
-        <p className="text-sm text-gray-600 max-w-md mx-auto">
+        <p className="text-sm text-gray-500 max-w-md mx-auto">
           Tu solicitud de kardex está siendo procesada. Por favor espera a que el administrador genere tu nuevo NFT Kardex.
         </p>
-        <div className="inline-flex items-center px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-full">
-          <svg
-            className="animate-spin h-5 w-5 text-yellow-500 mr-2"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
+        <div className="inline-flex items-center px-4 py-2 bg-warning-bg border border-warning rounded-xl">
+          <svg className="animate-spin h-5 w-5 text-warning mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span className="text-sm font-medium text-yellow-700">En espera</span>
+          <span className="text-sm font-medium text-warning">En espera</span>
         </div>
       </div>
     );
   }
-  
+
   return (
     <div className="p-6 text-center space-y-4">
-      <div className="mx-auto bg-gradient-to-r from-green-200 to-yellow-100 w-16 h-16 rounded-full flex items-center justify-center shadow-md">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-8 w-8 text-yellow-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          />
+      <div className="mx-auto bg-coral-bg w-16 h-16 rounded-2xl flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-coral" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
       <h3 className="font-medium text-gray-800">Solicitar Nuevo Kardex</h3>
-      <p className="text-sm text-gray-600 max-w-md mx-auto">
+      <p className="text-sm text-gray-500 max-w-md mx-auto">
         Al solicitar un nuevo kardex, se generará un nuevo hash IPFS con tu información académica actualizada.
       </p>
-      <button 
-        className="px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-600 transition-colors duration-200"
-        onClick={handleRequestConfirmation}
-        disabled={isLoading}
-      >
-        {isLoading ? "Procesando..." : "Solicitar Kardex"}
-      </button>
+      <p className="text-xs text-gray-400">
+        Costo de transacción: <span className="text-warning font-medium">{TX_FEE_ETH} BNB</span>
+      </p>
 
-      {/* Modal de Confirmación */}
-      {showConfirmationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 transform transition-all">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
-                <svg
-                  className="h-6 w-6 text-yellow-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              </div>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                Confirmar Solicitud de Kardex
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                ¿Estás seguro que deseas solicitar un nuevo kardex? 
-                Esta operación tendrá un costo de <span className="font-bold">{TX_COST_IN_USD} USD</span>.
-              </p>
-              <div className="mt-6 flex justify-center space-x-4">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
-                  onClick={handleCancelTransaction}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md font-medium hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-200"
-                  onClick={handleConfirmTransaction}
-                >
-                  Confirmar
-                </button>
-              </div>
-            </div>
+      <Button
+        className="bg-coral text-white hover:bg-coral-light"
+        onClick={function () { setShowConfirmModal(true); }}
+        loading={isLoading}
+      >
+        Solicitar Kardex
+      </Button>
+
+      {showConfirmModal && (
+        <Modal onClose={function () { setShowConfirmModal(false); }} showCloseButton={false}>
+          <ModalIcon type="warning" />
+          <h3 className="mt-4 text-lg font-medium text-gray-800">Confirmar Solicitud</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            ¿Estás seguro que deseas solicitar un nuevo kardex?
+            Costo: <span className="font-bold text-warning">{TX_FEE_ETH} BNB</span>
+          </p>
+          <div className="mt-6 flex justify-center space-x-3">
+            <Button
+              type="button"
+              className="text-gray-600 bg-surface hover:bg-surface-hover border border-border"
+              onClick={function () { setShowConfirmModal(false); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-coral text-white hover:bg-coral-light"
+              onClick={handleConfirmTransaction}
+              loading={isLoading}
+            >
+              Confirmar
+            </Button>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Modal de Resultado */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 transform transition-all">
-            <div className="text-center">
-              {modalType === "success" ? (
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                  <svg
-                    className="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-              ) : (
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                  <svg
-                    className="h-6 w-6 text-red-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </div>
-              )}
-              <h3
-                className={`mt-4 text-lg font-medium ${
-                  modalType === "success" ? "text-green-900" : "text-red-900"
-                }`}
-              >
-                {modalType === "success" ? "¡Operación Exitosa!" : "Error"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">{modalMessage}</p>
-              <div className="mt-6">
-                <button
-                  type="button"
-                  className={`inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white ${
-                    modalType === "success"
-                      ? "bg-orange-500 hover:bg-orange-600"
-                      : "bg-red-500 hover:bg-red-600"
-                  } focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    modalType === "success"
-                      ? "focus:ring-orange-500"
-                      : "focus:ring-red-500"
-                  } transition-colors duration-200`}
-                  onClick={closeModal}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showResultModal && (
+        <Modal onClose={function () { setShowResultModal(false); }}>
+          <ModalIcon type={modalType} />
+          <h3 className={"mt-4 text-lg font-medium " + (modalType === "success" ? "text-success" : "text-danger")}>
+            {modalType === "success" ? "¡Operación Exitosa!" : "Error"}
+          </h3>
+          <p className="mt-2 text-sm text-gray-500">{modalMessage}</p>
+        </Modal>
       )}
     </div>
   );
-}
+};

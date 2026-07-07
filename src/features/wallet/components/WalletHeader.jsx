@@ -1,13 +1,13 @@
-import React from "react"
-import { Icon } from "../../shared/components/Icon"
-import { Clipboard } from "lucide-react"
+import React from "react";
+import { Icon } from "../../shared/components/Icon";
+import { Clipboard, LogOut, ExternalLink } from "lucide-react";
 
-export const WalletHeader = ({ walletAddress, balance, onCopyAddress }) => {
+export var WalletHeader = function ({ walletAddress, balance, onCopyAddress, onLogout }) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-surface-card border border-border rounded-2xl p-6 shadow-card overflow-hidden">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-r from-orange-400 to-yellow-400 p-3 rounded-full shadow-md">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="bg-coral p-3 rounded-2xl flex-shrink-0">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-6 w-6 text-white"
@@ -23,19 +23,30 @@ export const WalletHeader = ({ walletAddress, balance, onCopyAddress }) => {
               />
             </svg>
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-bold text-gray-800">Billetera estudiantil</h2>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>{walletAddress}</span>
-              <Icon icon={Clipboard} onClick={onCopyAddress} className="text-gray-400 hover:text-orange-500" />
+            <div className="flex items-center gap-1 text-sm text-gray-400">
+              <span className="truncate">{walletAddress}</span>
+              <Icon icon={Clipboard} onClick={onCopyAddress} label="Copiar dirección" />
+              <a
+                href={"https://testnet.bscscan.com/address/" + walletAddress}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ver en BSCScan"
+                className="p-2 hover:bg-surface-hover rounded-lg transition-colors duration-200 flex-shrink-0"
+              >
+                <ExternalLink className="w-5 h-5 text-gray-400 hover:text-ocean transition-colors duration-200" />
+              </a>
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-r from-green-400 to-blue-400 px-6 py-3 rounded-full shadow-md">
-          <span className="font-bold text-white">{balance}</span>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="bg-ocean-bg border border-ocean px-5 py-2 rounded-xl">
+            <span className="font-bold text-ocean">{balance}</span>
+          </div>
+          <Icon icon={LogOut} onClick={onLogout} label="Cerrar sesión" iconClassName="w-5 h-5 text-danger hover:text-danger-light transition-colors duration-200" />
         </div>
       </div>
     </div>
-  )
-}
-
+  );
+};

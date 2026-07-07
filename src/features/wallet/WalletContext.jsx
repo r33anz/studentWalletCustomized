@@ -1,71 +1,60 @@
-// WalletProvider.jsx
 import React, { useState, useContext, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
-import provider from "../../contracts/conecction/blockchainConnection";
-import abiKardexNFT from "../../contracts/abi/abiKardexNFT";
+import provider from "../../contracts/connection/blockchainConnection";
 import WalletService from "./services/WalletService";
+import { fetchNFTData } from "../shared/services/NFTService";
 
-const WalletContext = React.createContext();
-export const useWallet = () => useContext(WalletContext);
+var WalletContext = React.createContext();
+export var useWallet = function () { return useContext(WalletContext); };
 
-export const WalletProvider = ({ children }) => {
-  const [walletData, setWalletData] = useState(null);
-  const [balance, setBalance] = useState("0 ETH");
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasActiveRequest, setHasActiveRequest] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
+export var WalletProvider = function ({ children }) {
+  var [walletData, setWalletData] = useState(null);
+  var [isRefreshing, setIsRefreshing] = useState(false);
+  var [hasActiveRequest, setHasActiveRequest] = useState(false);
+  var navigate = useNavigate();
+  var location = useLocation();
 
-  const reconstructWallet = useCallback((wallet) => {
-    try {
-      let reconstructedWallet;
-      if (!(wallet instanceof ethers.HDNodeWallet)) {
-        if (wallet.mnemonic && wallet.mnemonic.phrase) {
-          reconstructedWallet = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic.phrase);
-        } else {
-          reconstructedWallet = new ethers.HDNodeWallet(
-            wallet.privateKey,
-            wallet.publicKey,
-            wallet.address
-          );
-        }
-      } else {
-        reconstructedWallet = wallet;
-      }
-      return reconstructedWallet;
-    } catch (err) {
-      console.error("Error reconstruyendo wallet:", err);
-      throw new Error("No se pudo reconstruir la wallet");
+  var balance = walletData ? walletData.balance + " BNB" : "0 BNB";
+
+  var reconstructWallet = useCallback(function (wallet) {
+    if (wallet instanceof ethers.HDNodeWallet) return wallet;
+
+    if (wallet.mnemonic && wallet.mnemonic.phrase) {
+      return ethers.HDNodeWallet.fromPhrase(wallet.mnemonic.phrase);
     }
+
+    throw new Error("No se pudo reconstruir la wallet");
   }, []);
 
-  const refreshWalletData = useCallback(async () => {
+  var refreshWalletData = useCallback(async function () {
     if (!walletData?.wallet || !walletData?.sisCode || isRefreshing) return;
 
     setIsRefreshing(true);
     try {
-      const wallet = reconstructWallet(walletData.wallet);
-      const connectedWallet = wallet.connect(provider);
+      var wallet = reconstructWallet(walletData.wallet);
+      var connectedWallet = wallet.connect(provider);
 
-      const newBalance = await provider.getBalance(connectedWallet.address);
-      const nftData = await fetchNFTData(wallet.address);
-      
-      // NUEVA CONSULTA V2
-      const walletService = new WalletService(wallet);
-      const activeRequest = await walletService.hasActiveKardexRequest(walletData.sisCode);
+      var [newBalance, nftData, activeRequest] = await Promise.all([
+        provider.getBalance(connectedWallet.address),
+        fetchNFTData(wallet.address),
+        new WalletService(wallet).hasActiveKardexRequest(walletData.sisCode),
+      ]);
+
       setHasActiveRequest(activeRequest);
+      var formattedBalance = ethers.formatEther(newBalance);
 
-      setWalletData((prev) => ({
-        ...prev,
-        wallet,
-        balance: ethers.formatEther(newBalance),
-        nftData,
-        lastRefreshed: Date.now(),
-      }));
+      setWalletData(function (prev) {
+        return {
+          ...prev,
+          wallet: wallet,
+          balance: formattedBalance,
+          nftData: nftData,
+          lastRefreshed: Date.now(),
+        };
+      });
 
-      setBalance(`${ethers.formatEther(newBalance)} ETH`);
-      return { balance: ethers.formatEther(newBalance) };
+      return { balance: formattedBalance };
     } catch (error) {
       console.error("Error refreshing wallet:", error);
       throw error;
@@ -74,96 +63,81 @@ export const WalletProvider = ({ children }) => {
     }
   }, [walletData, reconstructWallet, isRefreshing]);
 
-  const fetchNFTData = useCallback(async (walletAddress) => {
-    try {
-      const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_KARDEX_NFT;
-      const nftContract = new ethers.Contract(contractAddress, abiKardexNFT, provider);
+  var logout = useCallback(function () {
+    setWalletData(null);
+    setHasActiveRequest(false);
+    navigate("/");
+  }, [navigate]);
 
-      const hasNft = await nftContract.hasKardex(walletAddress);
-      if (!hasNft) {
-        return { hasNFT: false, message: "No tienes un NFT Kardex aún. Solicítalo en la sección Kardex." };
+  useEffect(function () {
+    var isMounted = true;
+
+    var initialize = async function () {
+      if (!location.state?.wallet) {
+        if (isMounted) navigate("/");
+        return;
       }
 
-        const tokenId = await nftContract.studentToToken(walletAddress);
-        const [kardexInfo, tokenURI] = await Promise.all([
-        nftContract.getStudentKardex(walletAddress),
-        nftContract.tokenURI(tokenId),
+      try {
+        var wallet = reconstructWallet(location.state.wallet);
+        var sisCode = location.state.sisCode;
+        var isPageReload = performance.getEntriesByType("navigation")[0]?.type === "reload";
+        var hasPreloadedData = !isPageReload && location.state.balance !== undefined && location.state.nftData;
+
+        if (hasPreloadedData) {
+          setWalletData({
+            wallet: wallet,
+            balance: location.state.balance,
+            sisCode: sisCode,
+            nftData: location.state.nftData,
+            lastRefreshed: Date.now(),
+          });
+
+          new WalletService(wallet).hasActiveKardexRequest(sisCode)
+            .then(function (active) { if (isMounted) setHasActiveRequest(active); })
+            .catch(function () {});
+          return;
+        }
+
+        var connectedWallet = wallet.connect(provider);
+
+        var [initialBalance, nftData, activeRequest] = await Promise.all([
+          provider.getBalance(connectedWallet.address),
+          fetchNFTData(wallet.address),
+          new WalletService(wallet).hasActiveKardexRequest(sisCode),
         ]);
 
-      let cid = tokenURI.replace(`${process.env.REACT_APP_IPFS_GATEWAY}`, "");
-      if (tokenURI.startsWith("ipfs://")) cid = tokenURI.replace("ipfs://", "");
+        if (!isMounted) return;
+        setHasActiveRequest(activeRequest);
 
-      const response = await fetch(`${process.env.REACT_APP_IPFS_GATEWAY}${cid}`);
-      if (!response.ok) throw new Error("Error fetching metadata");
-      const metadata = await response.json();
-
-      return {
-        hasNFT: true,
-        tokenId: Number(tokenId),
-        metadata,
-        kardexInfo,
-        loadedAt: Date.now(),
-      };
-    }catch (err) {
-      console.error("Error fetching NFT data:", err);
-      return { hasNFT: false, error: err.message };
-    } 
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initialize = async () => {
-        if (location.state && location.state.wallet && isMounted) {
-          try {
-              const wallet = reconstructWallet(location.state.wallet);
-              const connectedWallet = wallet.connect(provider);
-              const initialBalance = await provider.getBalance(connectedWallet.address);
-              const nftData = await fetchNFTData(wallet.address);
-
-              // NUEVA CONSULTA V2
-              const walletService = new WalletService(wallet);
-              const activeRequest = await walletService.hasActiveKardexRequest(location.state.sisCode);
-              setHasActiveRequest(activeRequest);
-
-              setWalletData({
-              wallet,
-              balance: ethers.formatEther(initialBalance),
-              sisCode: location.state.sisCode,
-              nftData,
-              preloaded: location.state.preloaded || false,
-              lastRefreshed: Date.now(),
-              });
-
-              setBalance(`${ethers.formatEther(initialBalance)} ETH`);
-              await refreshWalletData();
-            
-          } catch (err) {
-              console.error("Error inicializando wallet:", err);
-              if (isMounted) navigate("/");
-          }
-        }else if (isMounted && !location.state?.wallet) {
-          navigate("/");
-        }
+        setWalletData({
+          wallet: wallet,
+          balance: ethers.formatEther(initialBalance),
+          sisCode: sisCode,
+          nftData: nftData,
+          lastRefreshed: Date.now(),
+        });
+      } catch (err) {
+        console.error("Error inicializando wallet:", err);
+        if (isMounted) navigate("/");
+      }
     };
 
     initialize();
 
-    return () => {
-        isMounted = false;
-    };
-    }, [location.state, navigate, reconstructWallet]);
+    return function () { isMounted = false; };
+  }, [location.state, navigate, reconstructWallet]);
 
   return (
     <WalletContext.Provider
       value={{
-        walletData,
-        setWalletData,
-        balance,
-        refreshWalletData,
-        isRefreshing,
-        hasActiveRequest,
-        setHasActiveRequest,
+        walletData: walletData,
+        balance: balance,
+        refreshWalletData: refreshWalletData,
+        isRefreshing: isRefreshing,
+        hasActiveRequest: hasActiveRequest,
+        setHasActiveRequest: setHasActiveRequest,
+        logout: logout,
       }}
     >
       {children}
