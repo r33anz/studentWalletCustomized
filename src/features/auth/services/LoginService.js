@@ -1,61 +1,36 @@
-import {HDNodeWallet,ethers} from 'ethers';
-import abiStudentManagement from '../../../contracts/abi/abiStudentManagement';
-import provider from '../../../contracts/conecction/blockchainConnection';
+import { HDNodeWallet, ethers } from "ethers";
+import abiStudentManagement from "../../../contracts/abi/abiStudentManagement";
+import provider from "../../../contracts/connection/blockchainConnection";
 
-class FirstLoginService {
+var contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT;
 
-    splitPhrase (text) {
-        if(typeof text !== 'string') return ''
-        return text.split(/\s+/)
+class AuthService {
+  constructor() {
+    this._contractCache = null;
+    this._cachedAddress = null;
+  }
+
+  getWalletFromPhrase(phrase) {
+    return HDNodeWallet.fromPhrase(phrase);
+  }
+
+  connectToManagementContract(wallet) {
+    if (this._contractCache && this._cachedAddress === wallet.address) {
+      return this._contractCache;
     }
 
-    countWords (arrText){
-        if(!Array.isArray(arrText)) return 0
-        return arrText.length === 12
-    }
+    this._contractCache = new ethers.Contract(
+      contractAddress,
+      abiStudentManagement,
+      wallet.connect(provider)
+    );
+    this._cachedAddress = wallet.address;
+    return this._contractCache;
+  }
 
-    rebuildPhrase(arrText){
-        if(!Array.isArray(arrText)) return ''
-        return arrText.join(' ')
-    }
-
-    getWalletAndPKFromMnemonicPhrase(phrase) {
-        const wallet = HDNodeWallet.fromPhrase(phrase);
-        return wallet;
-    }
-
-    connectToManagementCredentialContractToSetData(wallet) {
-        const contractAddressStudentManagement = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT
-
-        const contractStudentManagementToSetData = new ethers.Contract(
-            contractAddressStudentManagement,
-            abiStudentManagement,
-            wallet.connect(provider)
-        );
-
-        return contractStudentManagementToSetData;
-    }
-
-    connectToManagementCredentialContractToGetData(){
-        const contractAddressStudentManagement = process.env.REACT_APP_CONTRACT_ADDRESS_STUDENT_MANAGEMENT
-        const contractStudentManagementToReadData = new ethers.Contract(
-            contractAddressStudentManagement,   
-            abiStudentManagement,
-            provider)
-        
-        return contractStudentManagementToReadData;
-    }
-
-    async getBalance(walletAddress) {
-        try {
-          const balance = await provider.getBalance(walletAddress);
-          return balance;
-        } catch (error) {
-          console.error("Error fetching balance:", error);
-          throw error;
-        }
-      }
-
+  async getBalance(walletAddress) {
+    return provider.getBalance(walletAddress);
+  }
 }
 
-export default new FirstLoginService();
+export default new AuthService();
