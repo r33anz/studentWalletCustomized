@@ -1,20 +1,28 @@
 import React,{ Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { routes } from "./routes";
-import { WalletProvider } from "../features/wallet/WalletContext";
 
 export const AppRouter = () => {
   return (
     <BrowserRouter>
-      <WalletProvider>
-        <Suspense fallback={<div>Loading...</div>}>
-          <Routes>
-            {routes.map((route, index) => (
-              <Route key={index} path={route.path} element={route.element} />
-            ))}
-          </Routes>
-        </Suspense>
-      </WalletProvider>
+      <Suspense fallback={
+        <div className="min-h-screen bg-surface flex items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto bg-coral w-14 h-14 rounded-2xl flex items-center justify-center mb-4 animate-pulse">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p className="text-gray-400 text-sm">Cargando...</p>
+          </div>
+        </div>
+      }>
+        <Routes>
+          {routes.map((route, index) => (
+            <Route key={index} path={route.path} element={route.element} />
+          ))}
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };
